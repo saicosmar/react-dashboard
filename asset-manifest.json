@@ -1,0 +1,24 @@
+{
+  "files": {
+    "main.css": "/form_online_navios_abordados/static/css/main.3e12c678.chunk.css",
+    "main.js": "/form_online_navios_abordados/static/js/main.2043003c.chunk.js",
+    "main.js.map": "/form_online_navios_abordados/static/js/main.2043003c.chunk.js.map",
+    "runtime-main.js": "/form_online_navios_abordados/static/js/runtime-main.2dc4b46b.js",
+    "runtime-main.js.map": "/form_online_navios_abordados/static/js/runtime-main.2dc4b46b.js.map",
+    "static/js/2.89e64d22.chunk.js": "/form_online_navios_abordados/static/js/2.89e64d22.chunk.js",
+    "static/js/2.89e64d22.chunk.js.map": "/form_online_navios_abordados/static/js/2.89e64d22.chunk.js.map",
+    "static/js/3.5abd6247.chunk.js": "/form_online_navios_abordados/static/js/3.5abd6247.chunk.js",
+    "static/js/3.5abd6247.chunk.js.map": "/form_online_navios_abordados/static/js/3.5abd6247.chunk.js.map",
+    "index.html": "/form_online_navios_abordados/index.html",
+    "precache-manifest.0081a8a5df270a26a214c6cf31364216.js": "/form_online_navios_abordados/precache-manifest.0081a8a5df270a26a214c6cf31364216.js",
+    "service-worker.js": "/form_online_navios_abordados/service-worker.js",
+    "static/css/main.3e12c678.chunk.css.map": "/form_online_navios_abordados/static/css/main.3e12c678.chunk.css.map",
+    "static/js/2.89e64d22.chunk.js.LICENSE.txt": "/form_online_navios_abordados/static/js/2.89e64d22.chunk.js.LICENSE.txt"
+  },
+  "entrypoints": [
+    "static/js/runtime-main.2dc4b46b.js",
+    "static/js/2.89e64d22.chunk.js",
+    "static/css/main.3e12c678.chunk.css",
+    "static/js/main.2043003c.chunk.js"
+  ]
+}
