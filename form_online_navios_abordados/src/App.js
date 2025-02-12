@@ -15,7 +15,7 @@ function App() {
   // Estados com persistência via localStorage
   const [dadosOperacao, setDadosOperacao] = useState(() => {
     const saved = localStorage.getItem("dadosOperacao");
-    return saved ? JSON.parse(saved) : ["", "", "", ""];
+    return saved ? JSON.parse(saved) :  ["", "", "", "", ""];
   });
   const [dadosSelecionados, setDadosSelecionados] = useState(() => {
     const saved = localStorage.getItem("dadosSelecionados");
@@ -35,7 +35,7 @@ function App() {
   });
 
   // Estado para formato de localização ativo ("GG", "GGMM" ou "GGMMSS")
-  const [activeLocationFormat, setActiveLocationFormat] = useState("GG");
+  //const [activeLocationFormat, setActiveLocationFormat] = useState("GG");
 
   useEffect(() => {
     async function fetchConfig() {
@@ -120,7 +120,7 @@ function App() {
         situacao: "",
         tipoInfracao: "",
         medidasTomadas: "",
-        outrasAgencias: "",
+        //outrasAgencias: "",
         observacoes: "",
         disabled: false,
         data: new Date().toISOString().substring(0, 10),
@@ -175,31 +175,84 @@ function App() {
 
 // Função de conversão: recebe o valor da localização (ex.: "12,34 N" ou "12 34,56 N")
 // e retorna o formato (-)ggmm,mm (para latitude) ou (-)gggmm,mm (para longitude)
+// Detecta o formato da coordenada (GG,GG H | GG MM,MM H | GG MM SS H)
+const detectFormat = (value) => {
+  if (!value) return null;
+  const trimmed = value.trim().replace(",", "."); // Substituir "," por "."
+  const parts = trimmed.split(" ");
+
+  if (parts.length < 2) return null; // Precisa pelo menos de graus e hemisfério
+
+  const numericPart = parts.slice(0, parts.length - 1).join(" "); // Remove o hemisfério
+  const numericParts = numericPart.split(" ");
+
+  if (numericParts.length === 1 && numericParts[0].includes(".")) {
+    return "GG"; // Exemplo: "12,34 N"
+  } else if (numericParts.length === 2 && numericParts[1].includes(".")) {
+    return "GGMM"; // Exemplo: "12 34,56 N"
+  } else if (numericParts.length === 3) {
+    return "GGMMSS"; // Exemplo: "12 34 56 N"
+  }
+  return null;
+};
+
+// Converte a coordenada detectada para (-)ggmm,mm ou (-)gggmm,mm
 const convertLocation = (value, isLatitude) => {
   if (!value) return "";
-  const trimmed = value.trim();
+  
+  const format = detectFormat(value);
+  if (!format) return value; // Retorna o original se não identificar
+
+  const trimmed = value.trim().replace(",", "."); 
   const parts = trimmed.split(" ");
-  const hemis = parts[parts.length - 1].toUpperCase();
-  let numericPart = parts.slice(0, parts.length - 1).join("");
-  numericPart = numericPart.replace(",", "");
-  let degrees = "";
-  let minutes = "";
-  if (isLatitude) {
-    // Para latitude: 2 dígitos para graus, 2 para minutos
-    degrees = numericPart.slice(0, 2);
-    minutes = numericPart.slice(2, 4);
-  } else {
-    // Para longitude: 3 dígitos para graus, 2 para minutos
-    degrees = numericPart.slice(0, 3);
-    minutes = numericPart.slice(3, 5);
+  const hemis = parts.pop().toUpperCase(); // Último elemento é o hemisfério
+  const numericPart = parts.join(" ");
+
+  let degrees = 0, minutes = 0, seconds = 0;
+
+  if (format === "GG") {
+    degrees = parseFloat(numericPart);
+    minutes = (degrees % 1) * 60;
+    degrees = Math.floor(degrees);
+  } else if (format === "GGMM") {
+    const [deg, min] = numericPart.split(" ");
+    degrees = parseInt(deg, 10);
+    minutes = parseFloat(min);
+  } else if (format === "GGMMSS") {
+    const [deg, min, sec] = numericPart.split(" ");
+    degrees = parseInt(deg, 10);
+    minutes = parseInt(min, 10);
+    seconds = parseFloat(sec);
   }
-  if (!degrees || !minutes) return value;
-  let result = degrees + minutes; // ex: "1234" para latitude ou "12345" para longitude
-  result = result.slice(0, result.length - 2) + "," + result.slice(result.length - 2);
-  if (isLatitude && hemis === "S") result = "-" + result;
-  if (!isLatitude && hemis === "W") result = "-" + result;
+
+  // Converter segundos para fração de minutos
+  let minutesDecimal = (minutes + seconds / 60).toFixed(2);
+  let result = `${degrees}${minutesDecimal.replace(".", ",")}`;
+
+  // Ajustar sinal baseado no hemisfério
+  if ((isLatitude && hemis === "S") || (!isLatitude && hemis === "W")) {
+    result = "-" + result;
+  }
+
   return result;
 };
+
+
+
+
+  // Recupera o formato salvo ou usa "GG" como padrão
+  const [activeLocationFormat, setActiveLocationFormat] = useState(() => {
+    return localStorage.getItem("activeLocationFormat") || "GG";
+  });
+
+
+  // Atualiza o localStorage sempre que o formato mudar
+  useEffect(() => {
+    localStorage.setItem("activeLocationFormat", activeLocationFormat);
+  }, [activeLocationFormat]);
+
+
+
 
 const enviarDados = () => {
   // Verifica se os dados de operação foram alterados (não estão vazios)
@@ -221,7 +274,9 @@ const enviarDados = () => {
     entidade: dadosOperacao[1] || "",
     tipoOperacao: dadosOperacao[2] || "",
     nacionalidadeOperacao: dadosOperacao[3] || "",
+    outrasAgencias: dadosOperacao[4] || "", // Adicionando campo
   };
+  
 
   // Definindo os cabeçalhos para o Excel (22 colunas)
   const headers = [
@@ -272,10 +327,12 @@ const enviarDados = () => {
       row.tipoDeTask,
       lat,
       lon,
+      //row.latitude,  // Mantém os valores exatamente como estão
+      //row.longitude, // Sem conversão
       row.situacao,
       row.tipoInfracao,
       row.medidasTomadas,
-      row.outrasAgencias,
+      operacaoData.outrasAgencias,
       row.observacoes,
     ];
   });
@@ -290,30 +347,30 @@ const enviarDados = () => {
 
   return (
     <div className="container">
-      <h1>Dashboard de Navios</h1>
+      <h1>FORMULÁRIO PARA NAVIOS ABORDADOS/AVISTADOS/INVESTIGADOS</h1>
       {loading ? (
         <p>Carregando...</p>
       ) : error ? (
         <p className="error">{error}</p>
       ) : null}
 
-      <OperacaoTable
-        dadosOperacao={dadosOperacao}
-        config={[
-          config.operacoes,
-          config.entidades,
-          config.tiposEntidade,
-          config.nacionalidadeEntidade,
-        ]}
-        handleOperacaoChange={(e, index) => {
-          const novoValor = e.target.value;
-          setDadosOperacao((prev) => {
-            const novosDados = [...prev];
-            novosDados[index] = novoValor;
-            return novosDados;
-          });
-        }}
-      />
+<OperacaoTable
+  dadosOperacao={dadosOperacao}
+  config={[
+    config.operacoes,
+    config.entidades,
+    config.tiposEntidade,
+    config.nacionalidadeEntidade,
+  ]}
+  handleOperacaoChange={(e, index) => {
+    const novoValor = e.target.value;
+    setDadosOperacao((prev) => {
+      const novosDados = [...prev];
+      novosDados[index] = novoValor; // Atualiza corretamente qualquer campo
+      return novosDados;
+    });
+  }}
+/>
 
       <NaviosTable
         dadosFiltrados={dadosFiltrados}

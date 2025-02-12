@@ -1,46 +1,45 @@
 import React from "react";
 
 const OperacaoTable = ({ dadosOperacao, config, handleOperacaoChange }) => {
-  if (!Array.isArray(dadosOperacao) || !Array.isArray(config)) {
-    return <p>Erro: dadosOperacao ou config não são arrays válidos.</p>;
-  }
-
   return (
-    <div>
-      <div className="operacaotable">
-      <div className="table-wrapper small-table">
-        <table>
-          <thead>
-            <tr>
-              <th>Operação</th>
-              <th>Entidade</th>
-              <th>Tipo</th>
-              <th>Nacionalidade</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              {dadosOperacao.map((valor, index) => (
-                <td key={index}>
-                  {Array.isArray(config[index]) ? (
-                    <select value={valor} onChange={(e) => handleOperacaoChange(e, index)}>
-                      {config[index].map((item, idx) => (
-                        <option key={idx} value={item}>
-                          {item}
-                        </option>
-                      ))}
-                    </select>
-                  ) : (
-                    <p style={{ color: "red" }}>Erro: Configuração inválida</p>
-                  )}
-                </td>
-              ))}
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
-    </div>
+    <table>
+      <thead>
+        <tr>
+          <th>Operação</th>
+          <th>Entidade</th>
+          <th>Tipo de Operação</th>
+          <th>Nacionalidade</th>
+          <th>Outras Agências</th> {/* Adicionando a nova coluna */}
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          {config.map((opcoes, index) => (
+            <td key={index}>
+              <select
+                value={dadosOperacao[index] || ""}
+                onChange={(e) => handleOperacaoChange(e, index)}
+              >
+                <option value="">Selecione</option>
+                {opcoes.map((opcao, i) => (
+                  <option key={i} value={opcao}>
+                    {opcao}
+                  </option>
+                ))}
+              </select>
+            </td>
+          ))}
+          <td>
+            <input
+              type="text"
+              value={dadosOperacao[4] || ""} // Índice 4 para "Outras Agências"
+              onChange={(e) => handleOperacaoChange(e, 4)}
+              placeholder="Informe outras agências"
+            />
+          </td>
+        </tr>
+      </tbody>
+    </table>
   );
 };
 

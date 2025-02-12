@@ -175,3 +175,15 @@ select {
 .operacaotable table thead th {
   background-color: #333533; /* Rosa */
 }
+@media (max-width: 768px) { 
+    body {
+        font-size: 14px;
+          }
+input, textarea, select {
+    font-size: 16px;
+    }
+
+}
+
+          
+
