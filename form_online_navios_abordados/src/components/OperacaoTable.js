@@ -1,19 +1,15 @@
 import React from "react";
 
 const OperacaoTable = ({ dadosOperacao, config, handleOperacaoChange }) => {
-  // Função customizada para tratar a mudança na coluna "Entidade"
   const onEntidadeChange = (e) => {
     const selectedValue = e.target.value;
-    // Atualiza o valor da coluna "Entidade" (índice 1)
-    handleOperacaoChange(e, 1);
+    handleOperacaoChange(e, 1); // Atualiza índice 1 (Entidade)
 
-    // Se for "SIM/NAVIO", define Tipo de Entidade = "NAVIO" e Nacionalidade = "Cabo Verde"
+    // Atualiza campos dependentes imediatamente
     if (selectedValue === "SIM/NAVIO") {
-      handleOperacaoChange({ target: { value: "NAVIO" } }, 3);
-      handleOperacaoChange({ target: { value: "Cabo Verde" } }, 4);
-    }
-    // Se for "SIM/AERONAVE", define Tipo de Entidade = "AERONAVE" e Nacionalidade = "Cabo Verde"
-    else if (selectedValue === "SIM/AERONAVE") {
+      handleOperacaoChange({ target: { value: "NAVIO" } }, 3); // Índice 3 (Tipo de Entidade)
+      handleOperacaoChange({ target: { value: "Cabo Verde" } }, 4); // Índice 4 (Nacionalidade)
+    } else if (selectedValue === "SIM/AERONAVE") {
       handleOperacaoChange({ target: { value: "AERONAVE" } }, 3);
       handleOperacaoChange({ target: { value: "Cabo Verde" } }, 4);
     }
@@ -40,27 +36,30 @@ const OperacaoTable = ({ dadosOperacao, config, handleOperacaoChange }) => {
               onChange={(e) => handleOperacaoChange(e, 0)}
             >
               <option value="">Selecione</option>
-              {config[0] &&
-                config[0].map((opcao, i) => (
-                  <option key={i} value={opcao}>
-                    {opcao}
-                  </option>
-                ))}
+              {config[0]?.map((opcao, i) => (
+                <option key={i} value={opcao}>
+                  {opcao}
+                </option>
+              ))}
             </select>
           </td>
+
           {/* Entidade */}
           <td>
-            <select value={dadosOperacao[1] || ""} onChange={onEntidadeChange}>
+            <select
+              value={dadosOperacao[1] || ""}
+              onChange={onEntidadeChange}
+            >
               <option value="">Selecione</option>
-              {config[1] &&
-                config[1].map((opcao, i) => (
-                  <option key={i} value={opcao}>
-                    {opcao}
-                  </option>
-                ))}
+              {config[1]?.map((opcao, i) => (
+                <option key={i} value={opcao}>
+                  {opcao}
+                </option>
+              ))}
             </select>
           </td>
-          {/* Detalhe Entidade (habilitado apenas se Entidade for "OUTRO") */}
+
+          {/* Detalhe Entidade */}
           <td>
             <input
               type="text"
@@ -70,13 +69,12 @@ const OperacaoTable = ({ dadosOperacao, config, handleOperacaoChange }) => {
               disabled={dadosOperacao[1] !== "OUTRO"}
             />
           </td>
+
           {/* Tipo de Entidade */}
           <td>
-            {(dadosOperacao[1] === "SIM/NAVIO" || dadosOperacao[1] === "SIM/AERONAVE") ? (
-              <select value={dadosOperacao[1] === "SIM/NAVIO" ? "NAVIO" : "AERONAVE"} disabled>
-                <option value={dadosOperacao[1] === "SIM/NAVIO" ? "NAVIO" : "AERONAVE"}>
-                  {dadosOperacao[1] === "SIM/NAVIO" ? "NAVIO" : "AERONAVE"}
-                </option>
+            {["SIM/NAVIO", "SIM/AERONAVE"].includes(dadosOperacao[1]) ? (
+              <select value={dadosOperacao[3] || ""} disabled>
+                <option value={dadosOperacao[3]}>{dadosOperacao[3]}</option>
               </select>
             ) : (
               <select
@@ -84,20 +82,20 @@ const OperacaoTable = ({ dadosOperacao, config, handleOperacaoChange }) => {
                 onChange={(e) => handleOperacaoChange(e, 3)}
               >
                 <option value="">Selecione</option>
-                {config[2] &&
-                  config[2].map((opcao, i) => (
-                    <option key={i} value={opcao}>
-                      {opcao}
-                    </option>
-                  ))}
+                {config[2]?.map((opcao, i) => (
+                  <option key={i} value={opcao}>
+                    {opcao}
+                  </option>
+                ))}
               </select>
             )}
           </td>
+
           {/* Nacionalidade */}
           <td>
-            {(dadosOperacao[1] === "SIM/NAVIO" || dadosOperacao[1] === "SIM/AERONAVE") ? (
-              <select value="Cabo Verde" disabled>
-                <option value="Cabo Verde">Cabo Verde</option>
+            {["SIM/NAVIO", "SIM/AERONAVE"].includes(dadosOperacao[1]) ? (
+              <select value={dadosOperacao[4] || ""} disabled>
+                <option value={dadosOperacao[4]}>{dadosOperacao[4]}</option>
               </select>
             ) : (
               <select
@@ -105,17 +103,17 @@ const OperacaoTable = ({ dadosOperacao, config, handleOperacaoChange }) => {
                 onChange={(e) => handleOperacaoChange(e, 4)}
               >
                 <option value="">Selecione</option>
-                {config[3] &&
-                  config[3].map((opcao, i) => (
-                    <option key={i} value={opcao}>
-                      {opcao}
-                    </option>
-                  ))}
+                {config[3]?.map((opcao, i) => (
+                  <option key={i} value={opcao}>
+                    {opcao}
+                  </option>
+                ))}
               </select>
             )}
           </td>
+
           {/* Outras Agências */}
-          <td>            
+          <td>
             <input
               type="text"
               value={dadosOperacao[5] || ""}
