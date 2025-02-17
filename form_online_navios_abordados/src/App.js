@@ -51,22 +51,24 @@ function App() {
         const parsed = Papa.parse(response.data, { header: false });
         const linhas = parsed.data;
         const dados = linhas.slice(1); // remove header
-        setConfig({
-          nacionalidadeEntidade: dados.map((row) => row[0]).filter(Boolean),
-          operacoes: dados.map((row) => row[2]).filter(Boolean),
-          entidades: dados.map((row) => row[4]).filter(Boolean),
-          tiposEntidade: dados.map((row) => row[6]).filter(Boolean),
-          situacoes: dados.map((row) => row[8]).filter(Boolean),
-          tiposEmbarcacao: dados.map((row) => row[10]).filter(Boolean),
-          tipoInfracaoOptions: dados
-            .map((row) => {
-              if (row[12] && row[13]) {
-                return { value: row[12], description: row[13] };
-              }
-              return null;
-            })
-            .filter((item) => item !== null),
-        });
+setConfig({
+  nacionalidadeEntidade: dados.map((row) => row[0]).filter(Boolean),
+  operacoes: dados.map((row) => row[2]).filter(Boolean),
+  entidades: dados.map((row) => row[4]).filter(Boolean), // dropdown (coluna E)
+  tiposEntidade: dados.map((row) => row[6]).filter(Boolean),
+  situacoes: dados.map((row) => row[8]).filter(Boolean),
+  tiposEmbarcacao: dados.map((row) => row[10]).filter(Boolean),
+  tipoInfracaoOptions: dados
+    .map((row) => {
+      if (row[12] && row[13]) {
+        return { value: row[12], description: row[13] };
+      }
+      return null;
+    })
+    .filter((item) => item !== null),
+  automaticEntidades: dados.map((row) => row[3]).filter(Boolean), // valores automáticos (coluna D)
+});
+
       } catch (error) {
         console.error("Erro ao buscar configuração:", error);
         setError("Falha ao carregar configurações.");
@@ -327,16 +329,13 @@ function App() {
         <p className="error">{error}</p>
       ) : null}
 
-      <OperacaoTable
-        dadosOperacao={dadosOperacao}
-        config={[
-          config.operacoes,
-          config.entidades,
-          config.tiposEntidade,
-          config.nacionalidadeEntidade,
-        ]}
+<OperacaoTable
+  dadosOperacao={dadosOperacao}
+  config={config}
+  automaticEntidades={config.automaticEntidades}
+  handleOperacaoChange={handleOperacaoChange}
+/>
 
-      />
 
       <NaviosTable
         dadosFiltrados={dadosFiltrados}
