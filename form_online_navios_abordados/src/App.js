@@ -335,14 +335,7 @@ function App() {
           config.tiposEntidade,
           config.nacionalidadeEntidade,
         ]}
-        handleOperacaoChange={(e, index) => {
-          const novoValor = e.target.value;
-          setDadosOperacao((prev) => {
-            const novosDados = [...prev];
-            novosDados[index] = novoValor;
-            return novosDados;
-          });
-        }}
+
       />
 
       <NaviosTable
