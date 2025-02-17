@@ -1,6 +1,24 @@
 import React from "react";
 
 const OperacaoTable = ({ dadosOperacao, config, handleOperacaoChange }) => {
+  // Função customizada para tratar a mudança na coluna "Entidade"
+  const onEntidadeChange = (e) => {
+    const selectedValue = e.target.value;
+    // Atualiza o valor da coluna "Entidade" (índice 1)
+    handleOperacaoChange(e, 1);
+
+    // Se for "SIM/NAVIO", define Tipo de Entidade = "NAVIO" e Nacionalidade = "Cabo Verde"
+    if (selectedValue === "SIM/NAVIO") {
+      handleOperacaoChange({ target: { value: "NAVIO" } }, 3);
+      handleOperacaoChange({ target: { value: "Cabo Verde" } }, 4);
+    }
+    // Se for "SIM/AERONAVE", define Tipo de Entidade = "AERONAVE" e Nacionalidade = "Cabo Verde"
+    else if (selectedValue === "SIM/AERONAVE") {
+      handleOperacaoChange({ target: { value: "AERONAVE" } }, 3);
+      handleOperacaoChange({ target: { value: "Cabo Verde" } }, 4);
+    }
+  };
+
   return (
     <table>
       <thead>
@@ -32,21 +50,7 @@ const OperacaoTable = ({ dadosOperacao, config, handleOperacaoChange }) => {
           </td>
           {/* Entidade */}
           <td>
-            <select
-              value={dadosOperacao[1] || ""}
-              onChange={(e) => {
-                handleOperacaoChange(e, 1);
-                if (e.target.value === "SIM/NAVIO") {
-                  // Automatically set Tipo de Entidade and Nacionalidade for NAVIO
-                  handleOperacaoChange({ target: { value: "NAVIO" } }, 3);
-                  handleOperacaoChange({ target: { value: "Cabo Verde" } }, 4);
-                } else if (e.target.value === "SIM/AERONAVE") {
-                  // Automatically set Tipo de Entidade and Nacionalidade for AERONAVE
-                  handleOperacaoChange({ target: { value: "AERONAVE" } }, 3);
-                  handleOperacaoChange({ target: { value: "Cabo Verde" } }, 4);
-                }
-              }}
-            >
+            <select value={dadosOperacao[1] || ""} onChange={onEntidadeChange}>
               <option value="">Selecione</option>
               {config[1] &&
                 config[1].map((opcao, i) => (
@@ -56,7 +60,7 @@ const OperacaoTable = ({ dadosOperacao, config, handleOperacaoChange }) => {
                 ))}
             </select>
           </td>
-          {/* Detalhe Entidade (enabled only if Entidade is "OUTRO") */}
+          {/* Detalhe Entidade (habilitado apenas se Entidade for "OUTRO") */}
           <td>
             <input
               type="text"
@@ -111,7 +115,7 @@ const OperacaoTable = ({ dadosOperacao, config, handleOperacaoChange }) => {
             )}
           </td>
           {/* Outras Agências */}
-          <td>
+          <td>            
             <input
               type="text"
               value={dadosOperacao[5] || ""}
