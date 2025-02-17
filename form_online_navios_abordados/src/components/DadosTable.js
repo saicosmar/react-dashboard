@@ -1,75 +1,53 @@
-import React from "react";
+import React, { useState } from "react";
 import { LocalizacaoGGLatitude, LocalizacaoGGLongitude } from "./LocalizacaoGG";
 import { LocalizacaoGGMMLatitude, LocalizacaoGGMMLongitude } from "./LocalizacaoGGMM";
 import { LocalizacaoGGMMSSLatitude, LocalizacaoGGMMSSLongitude } from "./LocalizacaoGGMMSS";
 
-// Converte o valor da coordenada para o total de minutos.
-// Para o formato GG, o valor é interpretado como graus decimais (por exemplo, "15,06" significa 15,06°).
+// Função para converter o valor de localização em um número (total de minutos)
 const parseLocation = (value, currentFormat, isLatitude) => {
-  if (!value || value.trim() === "") return null;
+  if (!value || value.trim() === "") return null; // Retorna null se estiver vazio
   value = value.trim();
-  
   if (currentFormat === "GG") {
-    const decimalDegrees = parseFloat(value.replace(",", "."));
-    if (isNaN(decimalDegrees)) return null;
-    return decimalDegrees * 60; // total de minutos
+    const parts = value.split(",");
+    if (parts.length < 2) return null; // Garante que haja as duas partes
+    const degrees = parseInt(parts[0], 10);
+    const minutes = parseFloat(parts[1].replace(",", "."));
+    return degrees * 60 + minutes;
   } else if (currentFormat === "GGMM") {
-    // Aqui, usamos sempre 2 dígitos para os graus
-    const degDigits = 2;
+    const degDigits = isLatitude ? 2 : 3;
     const degrees = parseInt(value.slice(0, degDigits), 10);
     const minutes = parseFloat(value.slice(degDigits).replace(",", "."));
-    if (isNaN(degrees) || isNaN(minutes)) return null;
     return degrees * 60 + minutes;
   } else if (currentFormat === "GGMMSS") {
-    // Aqui, também usamos sempre 2 dígitos para os graus
-    const degDigits = 2;
+    const degDigits = isLatitude ? 2 : 3;
     const degrees = parseInt(value.slice(0, degDigits), 10);
     const minutes = parseInt(value.slice(degDigits, degDigits + 2), 10);
     const seconds = parseInt(value.slice(degDigits + 2, degDigits + 4), 10);
-    if (isNaN(degrees) || isNaN(minutes) || isNaN(seconds)) return null;
     return degrees * 60 + minutes + seconds / 60;
   }
-  return null;
+  return 0;
 };
 
-// Formata um total de minutos para o formato de destino.
-// Para GG: retorna graus decimais (exemplo: "15,06")  
-// Para GGMM: retorna "graus minutos,mm" (exemplo: "15 03,60")
-// Para GGMMSS: retorna "ggmmss,00" (exemplo: "150336,00"), ajustando caso os segundos arredondem para 60.
+// Função para formatar um total de minutos para o formato de destino
 const formatLocation = (totalMinutes, targetFormat, isLatitude) => {
-  if (totalMinutes === null) return "";
-  const absTotalMinutes = Math.abs(totalMinutes);
-  
+  if (totalMinutes === null) return ""; // Se não houver valor, retorna string vazia
+  const degrees = Math.floor(totalMinutes / 60);
+  const minutesDecimal = totalMinutes - degrees * 60;
   if (targetFormat === "GG") {
-    // Converte de volta para graus decimais (ex: "15,06")
-    const decimalDegrees = absTotalMinutes / 60;
-    return decimalDegrees.toFixed(2).replace(".", ",");
+    const degStr = isLatitude ? String(degrees).padStart(2, "0") : String(degrees).padStart(3, "0");
+    const minStr = minutesDecimal.toFixed(2).replace(".", ",");
+    return `${degStr},${minStr}`;
   } else if (targetFormat === "GGMM") {
-    // Converte para graus e minutos decimais (ex: "15 03,60")
-    const degrees = Math.floor(absTotalMinutes / 60);
-    const minutesDecimal = absTotalMinutes - degrees * 60;
-    let minStr = minutesDecimal.toFixed(2).replace(".", ",");
-    // Se minStr tiver menos de 5 caracteres (por exemplo, "3,60"), garante que fique com 2 dígitos à esquerda
-    if (minStr.length < 5) {
-      minStr = minStr.padStart(5, "0");
-    }
-    return `${degrees} ${minStr}`;
+    const degStr = isLatitude ? String(degrees).padStart(2, "0") : String(degrees).padStart(3, "0");
+    const minStr = minutesDecimal.toFixed(2).replace(".", ",");
+    return `${degStr}${minStr}`;
   } else if (targetFormat === "GGMMSS") {
-    // Converte para graus, minutos inteiros e segundos (ex: "150336,00")
-    let degrees = Math.floor(absTotalMinutes / 60);
-    let remainder = absTotalMinutes - degrees * 60;
-    let minutes = Math.floor(remainder);
-    let seconds = Math.round((remainder - minutes) * 60);
-    // Se os segundos arredondarem para 60, ajusta minutos e, se necessário, os graus
-    if (seconds === 60) {
-      seconds = 0;
-      minutes++;
-      if (minutes === 60) {
-        degrees++;
-        minutes = 0;
-      }
-    }
-    return `${degrees}${minutes.toString().padStart(2, "0")}${seconds.toString().padStart(2, "0")},00`;
+    const degStr = isLatitude ? String(degrees).padStart(2, "0") : String(degrees).padStart(3, "0");
+    const min = Math.floor(minutesDecimal);
+    const sec = Math.round((minutesDecimal - min) * 60);
+    const minStr = String(min).padStart(2, "0");
+    const secStr = String(sec).padStart(2, "0");
+    return `${degStr}${minStr}${secStr},00`;
   }
   return "";
 };
@@ -82,7 +60,8 @@ const DadosTable = ({
   removerLinha,
   activeLocationFormat,       // "GG", "GGMM" ou "GGMMSS"
   setActiveLocationFormat,    // Função para alterar o formato ativo
-  setDadosSelecionados,       // Função para atualizar os registros
+  setDadosSelecionados,       // Função para atualizar todos os registros
+  tipoInfracaoOptions,        // Novo: Array de objetos: { value, description }
 }) => {
   if (!dadosSelecionados.length)
     return (
@@ -91,8 +70,7 @@ const DadosTable = ({
       </p>
     );
 
-  // Função para alternar o formato e converter as coordenadas.
-  // Sequência: GG → GGMM, GGMM → GGMMSS, GGMMSS → GG.
+  // Função para alternar o modelo de posição e converter os valores existentes
   const toggleModel = () => {
     let newFormat;
     if (activeLocationFormat === "GG") {
@@ -105,15 +83,16 @@ const DadosTable = ({
     const updatedRows = dadosSelecionados.map((row) => {
       const totalMinutesLat = parseLocation(row.latitude, activeLocationFormat, true);
       const totalMinutesLon = parseLocation(row.longitude, activeLocationFormat, false);
-      const newLat = formatLocation(totalMinutesLat, newFormat, true);
-      const newLon = formatLocation(totalMinutesLon, newFormat, false);
+      // Se o valor for null, mantenha o campo vazio
+      const newLat = totalMinutesLat !== null ? formatLocation(totalMinutesLat, newFormat, true) : "";
+      const newLon = totalMinutesLon !== null ? formatLocation(totalMinutesLon, newFormat, false) : "";
       return { ...row, latitude: newLat, longitude: newLon };
     });
     setDadosSelecionados(updatedRows);
     setActiveLocationFormat(newFormat);
   };
 
-  // Exemplo de estilo para áreas de texto (não relacionado à conversão de coordenadas)
+  // Estilo para os campos com área de texto (Medidas Tomadas, OBS)
   const textAreaStyle = {
     minWidth: "150px",
     maxWidth: "300px",
@@ -123,27 +102,98 @@ const DadosTable = ({
     wordBreak: "break-all"
   };
 
+  // Componente customizado para dropdown multi-seleção com checkboxes e tooltip
+  const MultiSelectDropdown = ({ value, options, onChange, disabled }) => {
+    const [isOpen, setIsOpen] = useState(false);
+
+    const toggleDropdown = () => {
+      if (!disabled) {
+        setIsOpen(!isOpen);
+      }
+    };
+
+    const handleCheckboxChange = (e) => {
+      const optionValue = e.target.value;
+      let newValue;
+      if (e.target.checked) {
+        newValue = [...value, optionValue];
+      } else {
+        newValue = value.filter((v) => v !== optionValue);
+      }
+      onChange(newValue);
+    };
+
+    // Exibe os valores selecionados como uma lista separada por vírgula
+    const selectedText = options
+      .filter((option) => value.includes(option.value))
+      .map((option) => option.value)
+      .join(", ");
+
+    return (
+      <div className="multi-select-dropdown" style={{ position: "relative", width: "200px" }}>
+        <div
+          onClick={toggleDropdown}
+          style={{
+            border: "1px solid #ccc",
+            padding: "5px",
+            cursor: disabled ? "not-allowed" : "pointer",
+            backgroundColor: disabled ? "#f5f5f5" : "white"
+          }}
+        >
+          {selectedText || "Selecione..."}
+        </div>
+        {isOpen && (
+          <div
+            className="dropdown-options"
+            style={{
+              position: "absolute",
+              top: "100%",
+              left: 0,
+              right: 0,
+              border: "1px solid #ccc",
+              backgroundColor: "white",
+              zIndex: 1000,
+              maxHeight: "150px",
+              overflowY: "auto"
+            }}
+          >
+            {options.map((option) => (
+              <label
+                key={option.value}
+                title={option.description} // Exibe a descrição como tooltip ao passar o mouse
+                style={{ display: "block", padding: "5px", cursor: "pointer" }}
+              >
+                <input
+                  type="checkbox"
+                  value={option.value}
+                  checked={value.includes(option.value)}
+                  onChange={handleCheckboxChange}
+                />
+                {" "}{option.value}
+              </label>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  };
+
   return (
     <div className="dadostable">
       <div className="table-wrapper">
         <table>
           <thead>
             <tr>
-              {/* Cabeçalho – colunas fixas */}
+              {/* Apenas as colunas que devem ser exibidas */}
               <th>Nome da Embarcação</th>
               <th>Nº Registo/IMO</th>
-              <th>Nº Matrícula/MMSI</th>
-              <th>Tipo de Embarcacao</th>
-              <th>Nacionalidade</th>
-              <th>Nome do Mestre</th>
-              <th>Ilha</th>
-              <th>Licença</th>
               <th>Data</th>
               <th>Hora</th>
               <th>Tipo de Task</th>
+              {/* Botão para alternar modelo de posição */}
               <th colSpan="2">
                 <button onClick={toggleModel}>
-                  ALTERNAR FORMATO: {activeLocationFormat}
+                  ALTERNAR FORMATO POSIÇÕES, selecionado: {activeLocationFormat}
                 </button>
                 <br />
                 Latitude / Longitude
@@ -158,14 +208,9 @@ const DadosTable = ({
           <tbody>
             {dadosSelecionados.map((dado, rowIndex) => (
               <tr key={rowIndex}>
+                {/* Apenas as colunas que devem ser exibidas */}
                 <td>{dado.nomeEmbarcacao}</td>
                 <td>{dado.numRegisto}</td>
-                <td>{dado.numMatricula}</td>
-                <td>{dado.tipoEmbarcacao}</td>
-                <td>{dado.nacionalidade}</td>
-                <td>{dado.nomeMestre}</td>
-                <td>{dado.ilha}</td>
-                <td>{dado.licenca}</td>
                 <td>
                   <input
                     type="date"
@@ -198,7 +243,7 @@ const DadosTable = ({
                     </select>
                   )}
                 </td>
-                {/* Exibição da latitude conforme o formato ativo */}
+                {/* Coluna para Latitude */}
                 <td>
                   {activeLocationFormat === "GG" ? (
                     <LocalizacaoGGLatitude
@@ -228,7 +273,7 @@ const DadosTable = ({
                     />
                   )}
                 </td>
-                {/* Exibição da longitude conforme o formato ativo */}
+                {/* Coluna para Longitude */}
                 <td>
                   {activeLocationFormat === "GG" ? (
                     <LocalizacaoGGLongitude
@@ -275,16 +320,26 @@ const DadosTable = ({
                     </select>
                   )}
                 </td>
-                {/* Áreas de texto para campos longos */}
+                {/* Coluna para Tipo de Infração */}
                 <td>
-                  <textarea
-                    value={dado.tipoInfracao}
-                    onChange={(e) => updateCellValue(rowIndex, "tipoInfracao", e.target.value)}
-                    disabled={dado.disabled}
-                    style={textAreaStyle}
-                    rows={3}
-                  />
+                  {dado.disabled ? (
+                    <span>
+                      {Array.isArray(dado.tipoInfracao)
+                        ? dado.tipoInfracao.join(", ")
+                        : dado.tipoInfracao}
+                    </span>
+                  ) : (
+                    <MultiSelectDropdown
+                      value={Array.isArray(dado.tipoInfracao) ? dado.tipoInfracao : []}
+                      options={tipoInfracaoOptions}
+                      onChange={(selectedValues) =>
+                        updateCellValue(rowIndex, "tipoInfracao", selectedValues)
+                      }
+                      disabled={dado.disabled}
+                    />
+                  )}
                 </td>
+                {/* Coluna para Medidas Tomadas */}
                 <td>
                   <textarea
                     value={dado.medidasTomadas}
@@ -294,6 +349,7 @@ const DadosTable = ({
                     rows={3}
                   />
                 </td>
+                {/* Coluna para OBS */}
                 <td>
                   <textarea
                     value={dado.observacoes}
@@ -303,7 +359,7 @@ const DadosTable = ({
                     rows={3}
                   />
                 </td>
-                {/* Ações */}
+                {/* Coluna para Ações */}
                 <td>
                   <button onClick={() => updateRowDisabled(rowIndex, !dado.disabled)}>
                     {dado.disabled ? "Editar" : "Pronto"}

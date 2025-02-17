@@ -4,6 +4,7 @@ import OperacaoTable from "./components/OperacaoTable";
 import NaviosTable from "./components/NaviosTable";
 import DadosTable from "./components/DadosTable";
 import "./App.css";
+import Papa from "papaparse";
 import * as XLSX from "xlsx"; // Para exportação
 
 const GOOGLE_SHEET_URL =
@@ -15,7 +16,7 @@ function App() {
   // Estados com persistência via localStorage
   const [dadosOperacao, setDadosOperacao] = useState(() => {
     const saved = localStorage.getItem("dadosOperacao");
-    return saved ? JSON.parse(saved) :  ["", "", "", "", ""];
+    return saved ? JSON.parse(saved) : ["", "", "", "", ""];
   });
   const [dadosSelecionados, setDadosSelecionados] = useState(() => {
     const saved = localStorage.getItem("dadosSelecionados");
@@ -32,17 +33,24 @@ function App() {
     tiposEntidade: [],
     situacoes: [],
     tiposEmbarcacao: [],
+    // novo campo para infrações (colunas M e N)
+    tipoInfracaoOptions: [],
+  });
+  const [activeLocationFormat, setActiveLocationFormat] = useState(() => {
+    return localStorage.getItem("activeLocationFormat") || "GG";
   });
 
-  // Estado para formato de localização ativo ("GG", "GGMM" ou "GGMMSS")
-  //const [activeLocationFormat, setActiveLocationFormat] = useState("GG");
+  // Estado para exibir o modal da Lista de Infrações
+  const [showInfractionsModal, setShowInfractionsModal] = useState(false);
 
   useEffect(() => {
+      // inside useEffect...
     async function fetchConfig() {
       try {
         const response = await axios.get(GOOGLE_SHEET_CONFIG_URL);
-        const linhas = response.data.split("\n").map((linha) => linha.split(","));
-        const dados = linhas.slice(1); // Remove o cabeçalho
+        const parsed = Papa.parse(response.data, { header: false });
+        const linhas = parsed.data;
+        const dados = linhas.slice(1); // remove header
         setConfig({
           nacionalidadeEntidade: dados.map((row) => row[0]).filter(Boolean),
           operacoes: dados.map((row) => row[2]).filter(Boolean),
@@ -50,12 +58,22 @@ function App() {
           tiposEntidade: dados.map((row) => row[6]).filter(Boolean),
           situacoes: dados.map((row) => row[8]).filter(Boolean),
           tiposEmbarcacao: dados.map((row) => row[10]).filter(Boolean),
+          tipoInfracaoOptions: dados
+            .map((row) => {
+              if (row[12] && row[13]) {
+                return { value: row[12], description: row[13] };
+              }
+              return null;
+            })
+            .filter((item) => item !== null),
         });
       } catch (error) {
         console.error("Erro ao buscar configuração:", error);
         setError("Falha ao carregar configurações.");
       }
     }
+    
+
     async function fetchNavios() {
       try {
         const response = await axios.get(GOOGLE_SHEET_URL);
@@ -75,6 +93,9 @@ function App() {
   useEffect(() => {
     localStorage.setItem("dadosSelecionados", JSON.stringify(dadosSelecionados));
   }, [dadosSelecionados]);
+  useEffect(() => {
+    localStorage.setItem("activeLocationFormat", activeLocationFormat);
+  }, [activeLocationFormat]);
 
   const handleFiltroChange = (e, colunaIndex) => {
     const valor = e.target.value;
@@ -118,9 +139,8 @@ function App() {
         latitude: "",
         longitude: "",
         situacao: "",
-        tipoInfracao: "",
+        tipoInfracao: [], // Para multi-seleção
         medidasTomadas: "",
-        //outrasAgencias: "",
         observacoes: "",
         disabled: false,
         data: new Date().toISOString().substring(0, 10),
@@ -173,177 +193,130 @@ function App() {
     }
   };
 
-// Função de conversão: recebe o valor da localização (ex.: "12,34 N" ou "12 34,56 N")
-// e retorna o formato (-)ggmm,mm (para latitude) ou (-)gggmm,mm (para longitude)
-// Detecta o formato da coordenada (GG,GG H | GG MM,MM H | GG MM SS H)
-const detectFormat = (value) => {
-  if (!value) return null;
-  const trimmed = value.trim().replace(",", "."); // Substituir "," por "."
-  const parts = trimmed.split(" ");
-
-  if (parts.length < 2) return null; // Precisa pelo menos de graus e hemisfério
-
-  const numericPart = parts.slice(0, parts.length - 1).join(" "); // Remove o hemisfério
-  const numericParts = numericPart.split(" ");
-
-  if (numericParts.length === 1 && numericParts[0].includes(".")) {
-    return "GG"; // Exemplo: "12,34 N"
-  } else if (numericParts.length === 2 && numericParts[1].includes(".")) {
-    return "GGMM"; // Exemplo: "12 34,56 N"
-  } else if (numericParts.length === 3) {
-    return "GGMMSS"; // Exemplo: "12 34 56 N"
-  }
-  return null;
-};
-
-// Converte a coordenada detectada para (-)ggmm,mm ou (-)gggmm,mm
-const convertLocation = (value, isLatitude) => {
-  if (!value) return "";
-  
-  const format = detectFormat(value);
-  if (!format) return value; // Retorna o original se não identificar
-
-  const trimmed = value.trim().replace(",", "."); 
-  const parts = trimmed.split(" ");
-  const hemis = parts.pop().toUpperCase(); // Último elemento é o hemisfério
-  const numericPart = parts.join(" ");
-
-  let degrees = 0, minutes = 0, seconds = 0;
-
-  if (format === "GG") {
-    degrees = parseFloat(numericPart);
-    minutes = (degrees % 1) * 60;
-    degrees = Math.floor(degrees);
-  } else if (format === "GGMM") {
-    const [deg, min] = numericPart.split(" ");
-    degrees = parseInt(deg, 10);
-    minutes = parseFloat(min);
-  } else if (format === "GGMMSS") {
-    const [deg, min, sec] = numericPart.split(" ");
-    degrees = parseInt(deg, 10);
-    minutes = parseInt(min, 10);
-    seconds = parseFloat(sec);
-  }
-
-  // Converter segundos para fração de minutos
-  let minutesDecimal = (minutes + seconds / 60).toFixed(2);
-  let result = `${degrees}${minutesDecimal.replace(".", ",")}`;
-
-  // Ajustar sinal baseado no hemisfério
-  if ((isLatitude && hemis === "S") || (!isLatitude && hemis === "W")) {
-    result = "-" + result;
-  }
-
-  return result;
-};
-
-
-
-
-  // Recupera o formato salvo ou usa "GG" como padrão
-  const [activeLocationFormat, setActiveLocationFormat] = useState(() => {
-    return localStorage.getItem("activeLocationFormat") || "GG";
-  });
-
-
-  // Atualiza o localStorage sempre que o formato mudar
-  useEffect(() => {
-    localStorage.setItem("activeLocationFormat", activeLocationFormat);
-  }, [activeLocationFormat]);
-
-
-
-
-const enviarDados = () => {
-  // Verifica se os dados de operação foram alterados (não estão vazios)
-  if (dadosOperacao.every(field => field.trim() === "")) {
-    alert("Por favor, altere os dados de operação antes de enviar.");
-    return;
-  }
-  
-  // Verifica se todas as linhas estão no estado 'Pronto' (disabled === true)
-  const notReadyRows = dadosSelecionados.filter(row => !row.disabled);
-  if (notReadyRows.length > 0) {
-    alert("Todas as linhas devem estar no estado 'Pronto' antes de enviar.");
-    return;
-  }
-  
-  // Dados de operação (4 elementos)
-  const operacaoData = {
-    operacao: dadosOperacao[0] || "",
-    entidade: dadosOperacao[1] || "",
-    tipoOperacao: dadosOperacao[2] || "",
-    nacionalidadeOperacao: dadosOperacao[3] || "",
-    outrasAgencias: dadosOperacao[4] || "", // Adicionando campo
+  // Função de conversão para localização (mantida do seu código)
+  const detectFormat = (value) => {
+    if (!value) return null;
+    const trimmed = value.trim().replace(",", "."); // Substituir "," por "."
+    const parts = trimmed.split(" ");
+    if (parts.length < 2) return null;
+    const numericPart = parts.slice(0, parts.length - 1).join(" ");
+    const numericParts = numericPart.split(" ");
+    if (numericParts.length === 1 && numericParts[0].includes(".")) {
+      return "GG";
+    } else if (numericParts.length === 2 && numericParts[1].includes(".")) {
+      return "GGMM";
+    } else if (numericParts.length === 3) {
+      return "GGMMSS";
+    }
+    return null;
   };
-  
 
-  // Definindo os cabeçalhos para o Excel (22 colunas)
-  const headers = [
-    "Operação",
-    "Entidade",
-    "Tipo",
-    "Nacionalidade",
-    "Nome da Embarcação",
-    "Nº Registo/IMO",
-    "Nº Matrícula/MMSI",
-    "Tipo de Embarcacao",
-    "Nacionalidade",
-    "Nome do Mestre",
-    "Ilha",
-    "Licença",
-    "Data",
-    "Hora",
-    "Tipo de Task",
-    "Latitude",
-    "Longitude",
-    "Situação",
-    "Tipo de Infração",
-    "Medidas Tomadas",
-    "Outras Agências",
-    "OBS",
-  ];
+  const convertLocation = (value, isLatitude) => {
+    if (!value) return "";
+    const format = detectFormat(value);
+    if (!format) return value;
+    const trimmed = value.trim().replace(",", ".");
+    const parts = trimmed.split(" ");
+    const hemis = parts.pop().toUpperCase();
+    const numericPart = parts.join(" ");
+    let degrees = 0, minutes = 0, seconds = 0;
+    if (format === "GG") {
+      degrees = parseFloat(numericPart);
+      minutes = (degrees % 1) * 60;
+      degrees = Math.floor(degrees);
+    } else if (format === "GGMM") {
+      const [deg, min] = numericPart.split(" ");
+      degrees = parseInt(deg, 10);
+      minutes = parseFloat(min);
+    } else if (format === "GGMMSS") {
+      const [deg, min, sec] = numericPart.split(" ");
+      degrees = parseInt(deg, 10);
+      minutes = parseInt(min, 10);
+      seconds = parseFloat(sec);
+    }
+    let minutesDecimal = (minutes + seconds / 60).toFixed(2);
+    let result = `${degrees}${minutesDecimal.replace(".", ",")}`;
+    if ((isLatitude && hemis === "S") || (!isLatitude && hemis === "W")) {
+      result = "-" + result;
+    }
+    return result;
+  };
 
-  // Para cada registro, converte os campos de localização para o formato desejado.
-  // Aqui, assume-se que os campos 'latitude' e 'longitude' foram atualizados via os inputs.
-  const combinedData = dadosSelecionados.map((row) => {
-    const lat = convertLocation(row.latitude, true);
-    const lon = convertLocation(row.longitude, false);
-    return [
-      operacaoData.operacao,
-      operacaoData.entidade,
-      operacaoData.tipoOperacao,
-      operacaoData.nacionalidadeOperacao,
-      row.nomeEmbarcacao,
-      row.numRegisto,
-      row.numMatricula,
-      row.tipoEmbarcacao,
-      row.nacionalidade,
-      row.nomeMestre,
-      row.ilha,
-      row.licenca,
-      row.data,
-      row.hora,
-      row.tipoDeTask,
-      lat,
-      lon,
-      //row.latitude,  // Mantém os valores exatamente como estão
-      //row.longitude, // Sem conversão
-      row.situacao,
-      row.tipoInfracao,
-      row.medidasTomadas,
-      operacaoData.outrasAgencias,
-      row.observacoes,
+  const enviarDados = () => {
+    if (dadosOperacao.every((field) => field.trim() === "")) {
+      alert("Por favor, altere os dados de operação antes de enviar.");
+      return;
+    }
+    const notReadyRows = dadosSelecionados.filter((row) => !row.disabled);
+    if (notReadyRows.length > 0) {
+      alert("Todas as linhas devem estar no estado 'Pronto' antes de enviar.");
+      return;
+    }
+    const operacaoData = {
+      operacao: dadosOperacao[0] || "",
+      entidade: dadosOperacao[1] || "",
+      tipoOperacao: dadosOperacao[2] || "",
+      nacionalidadeOperacao: dadosOperacao[3] || "",
+      outrasAgencias: dadosOperacao[4] || "",
+    };
+    // Cabeçalhos para o Excel – Note que mesmo os campos removidos na tabela (display) são exportados.
+    const headers = [
+      "Operação",
+      "Entidade",
+      "Tipo",
+      "Nacionalidade",
+      "Nome da Embarcação",
+      "Nº Registo/IMO",
+      "Nº Matrícula/MMSI",
+      "Tipo de Embarcacao",
+      "Nacionalidade",
+      "Nome do Mestre",
+      "Ilha",
+      "Licença",
+      "Data",
+      "Hora",
+      "Tipo de Task",
+      "Latitude",
+      "Longitude",
+      "Situação",
+      "Tipo de Infração",
+      "Medidas Tomadas",
+      "Outras Agências",
+      "OBS",
     ];
-  });
-
-  // Cria a planilha (worksheet) a partir dos dados
-  const worksheet = XLSX.utils.aoa_to_sheet([headers, ...combinedData]);
-  const workbook = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(workbook, worksheet, "Dados");
-  XLSX.writeFile(workbook, "dados_exportados.xlsx");
-};
-
+    const combinedData = dadosSelecionados.map((row) => {
+      const lat = convertLocation(row.latitude, true);
+      const lon = convertLocation(row.longitude, false);
+      return [
+        operacaoData.operacao,
+        operacaoData.entidade,
+        operacaoData.tipoOperacao,
+        operacaoData.nacionalidadeOperacao,
+        row.nomeEmbarcacao,
+        row.numRegisto,
+        row.numMatricula,
+        row.tipoEmbarcacao,
+        row.nacionalidade,
+        row.nomeMestre,
+        row.ilha,
+        row.licenca,
+        row.data,
+        row.hora,
+        row.tipoDeTask,
+        lat,
+        lon,
+        row.situacao,
+        Array.isArray(row.tipoInfracao) ? row.tipoInfracao.join(", ") : row.tipoInfracao,
+        row.medidasTomadas,
+        operacaoData.outrasAgencias,
+        row.observacoes,
+      ];
+    });
+    const worksheet = XLSX.utils.aoa_to_sheet([headers, ...combinedData]);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Dados");
+    XLSX.writeFile(workbook, "dados_exportados.xlsx");
+  };
 
   return (
     <div className="container">
@@ -354,23 +327,23 @@ const enviarDados = () => {
         <p className="error">{error}</p>
       ) : null}
 
-<OperacaoTable
-  dadosOperacao={dadosOperacao}
-  config={[
-    config.operacoes,
-    config.entidades,
-    config.tiposEntidade,
-    config.nacionalidadeEntidade,
-  ]}
-  handleOperacaoChange={(e, index) => {
-    const novoValor = e.target.value;
-    setDadosOperacao((prev) => {
-      const novosDados = [...prev];
-      novosDados[index] = novoValor; // Atualiza corretamente qualquer campo
-      return novosDados;
-    });
-  }}
-/>
+      <OperacaoTable
+        dadosOperacao={dadosOperacao}
+        config={[
+          config.operacoes,
+          config.entidades,
+          config.tiposEntidade,
+          config.nacionalidadeEntidade,
+        ]}
+        handleOperacaoChange={(e, index) => {
+          const novoValor = e.target.value;
+          setDadosOperacao((prev) => {
+            const novosDados = [...prev];
+            novosDados[index] = novoValor;
+            return novosDados;
+          });
+        }}
+      />
 
       <NaviosTable
         dadosFiltrados={dadosFiltrados}
@@ -378,17 +351,17 @@ const enviarDados = () => {
         handleFiltroChange={handleFiltroChange}
       />
 
-<DadosTable
-  dadosSelecionados={dadosSelecionados}
-  handleCellEdit={handleCellEdit}
-  updateCellValue={updateCellValue}
-  updateRowDisabled={updateRowDisabled}
-  removerLinha={removerLinha}
-  activeLocationFormat={activeLocationFormat}
-  setActiveLocationFormat={setActiveLocationFormat}
-  setDadosSelecionados={setDadosSelecionados} // Necessário para atualizar os registros
-/>
-
+      <DadosTable
+        dadosSelecionados={dadosSelecionados}
+        handleCellEdit={handleCellEdit}
+        updateCellValue={updateCellValue}
+        updateRowDisabled={updateRowDisabled}
+        removerLinha={removerLinha}
+        activeLocationFormat={activeLocationFormat}
+        setActiveLocationFormat={setActiveLocationFormat}
+        setDadosSelecionados={setDadosSelecionados}
+        tipoInfracaoOptions={config.tipoInfracaoOptions}
+      />
 
       <button
         onClick={enviarDados}
@@ -407,6 +380,66 @@ const enviarDados = () => {
       >
         Resetar Dados
       </button>
+
+      {/* Botão para exibir a Lista de Infrações */}
+      <button
+        onClick={() => setShowInfractionsModal(true)}
+        style={{ marginTop: "20px", padding: "10px 20px" }}
+      >
+        Ver Lista de Infrações
+      </button>
+
+      {/* Modal para exibir a Lista de Infrações */}
+      {showInfractionsModal && (
+  <div
+    style={{
+      position: "fixed",
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      backgroundColor: "rgba(0,0,0,0.5)",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      zIndex: 1000,
+    }}
+  >
+    <div
+      style={{
+        backgroundColor: "#fff",
+        padding: "20px",
+        borderRadius: "4px",
+        width: "90%",
+        maxWidth: "800px",         // Increased max width for more space
+        maxHeight: "90vh",         // 90% of viewport height
+        overflowY: "auto",
+        textAlign: "left",
+        whiteSpace: "pre-wrap",    // Preserves newlines and wraps text
+        wordBreak: "break-word",   // Breaks long words if needed
+      }}
+    >
+      <h2>Lista de Infrações</h2>
+      <ul style={{ paddingLeft: "20px", margin: 0 }}>
+        {config.tipoInfracaoOptions.map((item, index) => (
+          <li
+            key={index}
+            style={{
+              marginBottom: "10px",
+              whiteSpace: "pre-wrap", // Ensures each list item wraps correctly
+            }}
+          >
+            <strong>{item.value}</strong>: {item.description}
+          </li>
+        ))}
+      </ul>
+      <button onClick={() => setShowInfractionsModal(false)}>Fechar</button>
+    </div>
+  </div>
+)}
+
+
+
     </div>
   );
 }
